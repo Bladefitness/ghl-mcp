@@ -14,6 +14,12 @@ bindings = [
 tag = "v1"
 new_sqlite_classes = ["GHLMcpAgent"]
 
+# D1 Database for sub-account and token storage
+[[d1_databases]]
+binding = "GHL_DB"
+database_name = "ghl-accounts"
+database_id = "647917a2-ace2-4b98-a10f-f822c5678646"
+
 # Environment variables (set via wrangler secret)
-# GHL_API_KEY - Your GoHighLevel Private Integration Token
-# GHL_LOCATION_ID - Your GHL Sub-Account/Location ID
+# GHL_API_KEY - Default/fallback Private Integration Token
+# GHL_LOCATION_ID - Default/fallback Location ID
