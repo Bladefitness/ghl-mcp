@@ -12,7 +12,7 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_classes = ["GHLMcpAgent"]
+new_sqlite_classes = ["GHLMcpAgent"]
 
 # Environment variables (set via wrangler secret)
 # GHL_API_KEY - Your GoHighLevel Private Integration Token
