@@ -1,0 +1,19 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "ghl-mcp-server"
+main = "src/index.ts"
+compatibility_date = "2025-03-14"
+compatibility_flags = ["nodejs_compat"]
+
+# Durable Objects for stateful MCP sessions
+[durable_objects]
+bindings = [
+  { name = "GHL_MCP_AGENT", class_name = "GHLMcpAgent" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["GHLMcpAgent"]
+
+# Environment variables (set via wrangler secret)
+# GHL_API_KEY - Your GoHighLevel Private Integration Token
+# GHL_LOCATION_ID - Your GHL Sub-Account/Location ID
