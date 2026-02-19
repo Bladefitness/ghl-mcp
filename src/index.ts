@@ -959,7 +959,40 @@ Use objectKey like "custom_objects.pet" or "company".`,
 }
 
 // ============================================================
-// Worker entry point
+
+// ============================================================
+// CORS headers (required for browser-based MCP connectors)
+// ============================================================
+
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, X-Requested-With",
+  "Access-Control-Expose-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+function addCors(response: Response): Response {
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    newHeaders.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
+
+function jsonResponse(body: object, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
+}
+
+// ============================================================
+// Worker entry point with authentication
 // ============================================================
 
 const mcpHandler = GHLMcpAgent.mount("/sse");
@@ -967,22 +1000,48 @@ const mcpHandler = GHLMcpAgent.mount("/sse");
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-    if (url.pathname === "/" || url.pathname === "/health") {
-      return new Response(JSON.stringify({ status: "ok", server: "GHL MCP Server", version: "2.1.0", mcp_endpoint: "/sse" }), { headers: { "Content-Type": "application/json" } });
+
+    // Handle CORS preflight for ALL endpoints
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
+
+    // Health check endpoint (no auth required)
+    if (url.pathname === "/" || url.pathname === "/health") {
+      return jsonResponse({
+        status: "ok",
+        server: "GHL MCP Server",
+        version: "2.2.0",
+        mcp_endpoint: "/sse",
+      }, 200);
+    }
+
+    // All MCP endpoints require Bearer token authentication
     if (url.pathname.startsWith("/sse")) {
       const authHeader = request.headers.get("Authorization");
+
       if (!authHeader) {
-        return new Response(JSON.stringify({ error: "Missing Authorization header. Use: Bearer <token>" }), { status: 401, headers: { "Content-Type": "application/json" } });
+        return jsonResponse(
+          { error: "Missing Authorization header. Use: Bearer <token>" },
+          401
+        );
       }
+
       const [scheme, token] = authHeader.split(" ");
       if (scheme !== "Bearer" || !token) {
-        return new Response(JSON.stringify({ error: "Invalid auth format. Use: Bearer <token>" }), { status: 401, headers: { "Content-Type": "application/json" } });
+        return jsonResponse(
+          { error: "Invalid auth format. Use: Bearer <token>" },
+          401
+        );
       }
+
       if (token !== env.MCP_AUTH_TOKEN) {
-        return new Response(JSON.stringify({ error: "Invalid token" }), { status: 403, headers: { "Content-Type": "application/json" } });
+        return jsonResponse({ error: "Invalid token" }, 403);
       }
     }
-    return mcpHandler.fetch(request, env, ctx);
+
+    // Pass through to MCP handler, then add CORS headers to response
+    const response = await mcpHandler.fetch(request, env, ctx);
+    return addCors(response);
   },
 };
