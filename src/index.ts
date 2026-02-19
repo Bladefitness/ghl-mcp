@@ -26,6 +26,7 @@ interface Env {
   GHL_LOCATION_ID: string;
   GHL_MCP_AGENT: DurableObjectNamespace;
   GHL_DB: D1Database;
+  MCP_AUTH_TOKEN: string;
 }
 
 interface SubAccount {
@@ -138,7 +139,7 @@ async function resolveClient(
 export class GHLMcpAgent extends McpAgent<Env> {
   server = new McpServer({
     name: "GoHighLevel MCP Server",
-    version: "2.0.0",
+    version: "2.1.0",
   });
 
   async init() {
@@ -961,4 +962,27 @@ Use objectKey like "custom_objects.pet" or "company".`,
 // Worker entry point
 // ============================================================
 
-export default GHLMcpAgent.mount("/sse");
+const mcpHandler = GHLMcpAgent.mount("/sse");
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === "/" || url.pathname === "/health") {
+      return new Response(JSON.stringify({ status: "ok", server: "GHL MCP Server", version: "2.1.0", mcp_endpoint: "/sse" }), { headers: { "Content-Type": "application/json" } });
+    }
+    if (url.pathname.startsWith("/sse")) {
+      const authHeader = request.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Missing Authorization header. Use: Bearer <token>" }), { status: 401, headers: { "Content-Type": "application/json" } });
+      }
+      const [scheme, token] = authHeader.split(" ");
+      if (scheme !== "Bearer" || !token) {
+        return new Response(JSON.stringify({ error: "Invalid auth format. Use: Bearer <token>" }), { status: 401, headers: { "Content-Type": "application/json" } });
+      }
+      if (token !== env.MCP_AUTH_TOKEN) {
+        return new Response(JSON.stringify({ error: "Invalid token" }), { status: 403, headers: { "Content-Type": "application/json" } });
+      }
+    }
+    return mcpHandler.fetch(request, env, ctx);
+  },
+};
